@@ -14,3 +14,4 @@ observer/main.py
 observer/models.py
 observer/notify.py
 observer/savings.py
+tests/test_models.py

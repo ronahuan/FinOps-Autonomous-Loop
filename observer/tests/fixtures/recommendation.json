@@ -1,0 +1,19 @@
+[
+  {
+    "cluster": "crc",
+    "namespace": "finops-demo",
+    "workload": "waster",
+    "workload_type": "Deployment",
+    "container": "waster",
+    "current": {
+      "cpu_request": "500m",
+      "memory_request": "512Mi"
+    },
+    "recommended": {
+      "cpu_request": "50m",
+      "memory_request": "64Mi"
+    },
+    "recommendation_term": "15d",
+    "last_reported": "2026-06-01T05:40:25Z"
+  }
+]
