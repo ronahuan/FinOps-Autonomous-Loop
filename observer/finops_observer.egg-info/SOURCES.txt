@@ -1,0 +1,16 @@
+pyproject.toml
+finops_observer.egg-info/PKG-INFO
+finops_observer.egg-info/SOURCES.txt
+finops_observer.egg-info/dependency_links.txt
+finops_observer.egg-info/requires.txt
+finops_observer.egg-info/top_level.txt
+observer/__init__.py
+observer/auth.py
+observer/cluster.py
+observer/config.py
+observer/costmgmt.py
+observer/gates.py
+observer/main.py
+observer/models.py
+observer/notify.py
+observer/savings.py

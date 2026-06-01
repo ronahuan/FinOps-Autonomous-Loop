@@ -1,0 +1,10 @@
+.env
+*token*
+*secret*
+kubeconfig
+__pycache__/
+*.pyc
+observer/out/*
+!observer/out/.gitkeep
+actor/out/*
+!actor/out/.gitkeep

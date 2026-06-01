@@ -1,0 +1,7 @@
+httpx
+pydantic>=2
+kubernetes
+python-dotenv
+
+[dev]
+pytest

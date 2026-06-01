@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RemediationIntent",
+  "description": "Contract between Observer, EDA, and Actor for right-sizing remediation.",
+  "type": "object",
+  "required": [
+    "stage",
+    "cluster",
+    "namespace",
+    "workload",
+    "workload_type",
+    "container",
+    "current",
+    "recommended",
+    "recommendation_term",
+    "last_reported",
+    "monthly_saving_estimate",
+    "decision",
+    "reasons"
+  ],
+  "properties": {
+    "stage": {
+      "type": "string",
+      "enum": ["proposed", "approved"]
+    },
+    "decision": {
+      "type": "string",
+      "enum": ["approve", "block"]
+    },
+    "cluster": { "type": "string" },
+    "namespace": { "type": "string" },
+    "workload": { "type": "string" },
+    "workload_type": {
+      "type": "string",
+      "enum": ["Deployment"]
+    },
+    "container": { "type": "string" },
+    "current": {
+      "type": "object",
+      "required": ["cpu_request", "memory_request"],
+      "properties": {
+        "cpu_request": { "type": "string" },
+        "memory_request": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "recommended": {
+      "type": "object",
+      "required": ["cpu_request", "memory_request"],
+      "properties": {
+        "cpu_request": { "type": "string" },
+        "memory_request": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "recommendation_term": { "type": "string" },
+    "last_reported": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "monthly_saving_estimate": { "type": "number" },
+    "reasons": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": false
+}
