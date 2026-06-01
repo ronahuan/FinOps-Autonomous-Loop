@@ -1,0 +1,188 @@
+# Patches a Deployment's REQUESTS only, on CRC only, on finops-demo/waster only.
+# module_defaults forces the scoped actor token on every k8s call (no kubeconfig
+# fallback). Backs up the Deployment, verifies the rollout explicitly, and
+# AUTO-ROLLS-BACK on any failure.
+- name: Safe right-size remediation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  module_defaults:
+    kubernetes.core.k8s:
+      host: "{{ lookup('ansible.builtin.env', 'K8S_AUTH_HOST') }}"
+      api_key: "{{ lookup('ansible.builtin.env', 'K8S_AUTH_API_KEY') }}"
+      validate_certs: false
+    kubernetes.core.k8s_info:
+      host: "{{ lookup('ansible.builtin.env', 'K8S_AUTH_HOST') }}"
+      api_key: "{{ lookup('ansible.builtin.env', 'K8S_AUTH_API_KEY') }}"
+      validate_certs: false
+  vars:
+    allowed_namespaces: ["finops-demo"]
+    allowed_workloads: ["waster"]
+    expected_api_host: "https://api.crc.testing:6443"
+    rollout_timeout: 120
+    out_dir: "{{ playbook_dir }}/../out"
+    suppress_file: "{{ out_dir }}/suppress.txt"
+    savings_file: "{{ out_dir }}/savings.csv"
+    backup_dir: "{{ out_dir }}/backups"
+    force_fail_after_patch: false
+    # required: namespace, workload, container, cpu_req, mem_req ; optional: saving, expected_cpu, expected_mem
+  tasks:
+    - name: SAFETY - required vars present
+      ansible.builtin.assert:
+        that:
+          - namespace is defined
+          - workload is defined
+          - container is defined
+          - cpu_req is defined
+          - mem_req is defined
+        fail_msg: "Missing required vars."
+
+    - name: SAFETY - actor token present (else k8s could fall back to admin kubeconfig)
+      ansible.builtin.assert:
+        that:
+          - lookup('ansible.builtin.env', 'K8S_AUTH_API_KEY') | length > 20
+        fail_msg: "K8S_AUTH_API_KEY missing/short. Refusing without the scoped actor token."
+
+    - name: SAFETY - refuse any cluster but CRC
+      ansible.builtin.assert:
+        that:
+          - lookup('ansible.builtin.env', 'K8S_AUTH_HOST') == expected_api_host
+        fail_msg: "K8S_AUTH_HOST != CRC. Refusing."
+
+    - name: SAFETY - refuse namespaces off the allowlist
+      ansible.builtin.assert:
+        that:
+          - namespace in allowed_namespaces
+        fail_msg: "Namespace {{ namespace }} not allowed."
+
+    - name: SAFETY - refuse workloads off the allowlist
+      ansible.builtin.assert:
+        that:
+          - workload in allowed_workloads
+        fail_msg: "Workload {{ workload }} not allowed (only waster)."
+
+    - name: Read the target Deployment
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        namespace: "{{ namespace }}"
+        name: "{{ workload }}"
+      register: dep
+
+    - name: Fail if Deployment missing
+      ansible.builtin.assert:
+        that:
+          - dep.resources | length == 1
+        fail_msg: "Deployment {{ namespace }}/{{ workload }} not found."
+
+    - name: Fail if the target container is absent
+      ansible.builtin.assert:
+        that:
+          - dep.resources[0].spec.template.spec.containers | selectattr('name','equalto', container) | list | length == 1
+        fail_msg: "Container {{ container }} not found."
+
+    - name: Capture original requests (rollback target)
+      ansible.builtin.set_fact:
+        orig_cpu: "{{ (dep.resources[0].spec.template.spec.containers | selectattr('name','equalto', container) | first).resources.requests.cpu }}"
+        orig_mem: "{{ (dep.resources[0].spec.template.spec.containers | selectattr('name','equalto', container) | first).resources.requests.memory }}"
+
+    - name: SAFETY - live config still matches the approved baseline (when provided by EDA)
+      ansible.builtin.assert:
+        that:
+          - (expected_cpu is not defined) or (orig_cpu == expected_cpu)
+          - (expected_mem is not defined) or (orig_mem == expected_mem)
+        fail_msg: "Live requests changed since approval. Refusing stale remediation."
+
+    - name: Ensure backup directory exists
+      ansible.builtin.file:
+        path: "{{ backup_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Back up the full Deployment before patching
+      ansible.builtin.copy:
+        dest: "{{ backup_dir }}/{{ namespace }}__{{ workload }}__{{ now(utc=true, fmt='%Y%m%dT%H%M%SZ') }}.json"
+        content: "{{ dep.resources[0] | to_nice_json }}"
+        mode: "0600"
+
+    - name: Patch + verify rollout, auto-rollback on failure
+      block:
+        - name: Patch requests only (limits untouched)
+          kubernetes.core.k8s:
+            state: patched
+            wait: false
+            definition:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata: { name: "{{ workload }}", namespace: "{{ namespace }}" }
+              spec:
+                template:
+                  spec:
+                    containers:
+                      - name: "{{ container }}"
+                        resources:
+                          requests: { cpu: "{{ cpu_req }}", memory: "{{ mem_req }}" }
+
+        - name: Verify the new rollout actually completed
+          kubernetes.core.k8s_info:
+            api_version: apps/v1
+            kind: Deployment
+            namespace: "{{ namespace }}"
+            name: "{{ workload }}"
+          register: rollout
+          until:
+            - rollout.resources | length == 1
+            - (rollout.resources[0].status.observedGeneration | default(0)) >= (rollout.resources[0].metadata.generation | default(1))
+            - (rollout.resources[0].status.updatedReplicas   | default(0)) == (rollout.resources[0].spec.replicas | default(1))
+            - (rollout.resources[0].status.availableReplicas | default(0)) == (rollout.resources[0].spec.replicas | default(1))
+            - (rollout.resources[0].status.unavailableReplicas | default(0)) == 0
+          retries: "{{ (rollout_timeout | int) // 4 }}"
+          delay: 4
+
+        - name: DEMO ONLY - force a post-patch failure to exercise rollback
+          ansible.builtin.fail:
+            msg: "Forced post-patch failure (rollback demo)."
+          when: force_fail_after_patch | default(false) | bool
+
+        - name: Success
+          ansible.builtin.debug:
+            msg: "OK {{ namespace }}/{{ workload }} -> cpu {{ cpu_req }}, mem {{ mem_req }}"
+
+        - name: Record savings
+          ansible.builtin.lineinfile:
+            path: "{{ savings_file }}"
+            create: true
+            line: "{{ now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') }},{{ namespace }},{{ workload }},{{ saving | default('NA') }}"
+          when: saving is defined
+
+      rescue:
+        - name: ROLLBACK - restore original requests
+          kubernetes.core.k8s:
+            state: patched
+            wait: true
+            wait_timeout: "{{ rollout_timeout }}"
+            definition:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata: { name: "{{ workload }}", namespace: "{{ namespace }}" }
+              spec:
+                template:
+                  spec:
+                    containers:
+                      - name: "{{ container }}"
+                        resources:
+                          requests: { cpu: "{{ orig_cpu }}", memory: "{{ orig_mem }}" }
+
+        - name: Suppress this workload
+          ansible.builtin.lineinfile:
+            path: "{{ suppress_file }}"
+            create: true
+            line: "{{ namespace }}/{{ workload }}"
+
+        - name: Announce rollback
+          ansible.builtin.debug:
+            msg: "ROLLED BACK {{ namespace }}/{{ workload }} to cpu {{ orig_cpu }}, mem {{ orig_mem }}"
+
+        - name: Mark the run failed
+          ansible.builtin.fail:
+            msg: "Remediation failed; rolled back."
