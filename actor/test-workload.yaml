@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: waster
+  namespace: finops-demo
+  labels:
+    owner: finops-intern
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: waster
+  template:
+    metadata:
+      labels:
+        app: waster
+        owner: finops-intern
+    spec:
+      containers:
+        - name: waster
+          image: registry.access.redhat.com/ubi9/ubi
+          command: ["sleep", "infinity"]
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            exec:
+              command: ["true"]
+            initialDelaySeconds: 5

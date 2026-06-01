@@ -1,10 +1,91 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "RemediationIntent",
-  "description": "Contract between Observer, EDA, and Actor for right-sizing remediation.",
-  "type": "object",
+  "$defs": {
+    "ResourceSet": {
+      "properties": {
+        "cpu_request": {
+          "title": "Cpu Request",
+          "type": "string"
+        },
+        "memory_request": {
+          "title": "Memory Request",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cpu_request",
+        "memory_request"
+      ],
+      "title": "ResourceSet",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "cluster": {
+      "title": "Cluster",
+      "type": "string"
+    },
+    "namespace": {
+      "title": "Namespace",
+      "type": "string"
+    },
+    "workload": {
+      "title": "Workload",
+      "type": "string"
+    },
+    "workload_type": {
+      "title": "Workload Type",
+      "type": "string"
+    },
+    "container": {
+      "title": "Container",
+      "type": "string"
+    },
+    "current": {
+      "$ref": "#/$defs/ResourceSet"
+    },
+    "recommended": {
+      "$ref": "#/$defs/ResourceSet"
+    },
+    "recommendation_term": {
+      "title": "Recommendation Term",
+      "type": "string"
+    },
+    "last_reported": {
+      "title": "Last Reported",
+      "type": "string"
+    },
+    "stage": {
+      "default": "proposed",
+      "enum": [
+        "proposed",
+        "approved"
+      ],
+      "title": "Stage",
+      "type": "string"
+    },
+    "monthly_saving_estimate": {
+      "default": 0.0,
+      "title": "Monthly Saving Estimate",
+      "type": "number"
+    },
+    "decision": {
+      "default": "block",
+      "enum": [
+        "approve",
+        "block"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Reasons",
+      "type": "array"
+    }
+  },
   "required": [
-    "stage",
     "cluster",
     "namespace",
     "workload",
@@ -13,56 +94,8 @@
     "current",
     "recommended",
     "recommendation_term",
-    "last_reported",
-    "monthly_saving_estimate",
-    "decision",
-    "reasons"
+    "last_reported"
   ],
-  "properties": {
-    "stage": {
-      "type": "string",
-      "enum": ["proposed", "approved"]
-    },
-    "decision": {
-      "type": "string",
-      "enum": ["approve", "block"]
-    },
-    "cluster": { "type": "string" },
-    "namespace": { "type": "string" },
-    "workload": { "type": "string" },
-    "workload_type": {
-      "type": "string",
-      "enum": ["Deployment"]
-    },
-    "container": { "type": "string" },
-    "current": {
-      "type": "object",
-      "required": ["cpu_request", "memory_request"],
-      "properties": {
-        "cpu_request": { "type": "string" },
-        "memory_request": { "type": "string" }
-      },
-      "additionalProperties": false
-    },
-    "recommended": {
-      "type": "object",
-      "required": ["cpu_request", "memory_request"],
-      "properties": {
-        "cpu_request": { "type": "string" },
-        "memory_request": { "type": "string" }
-      },
-      "additionalProperties": false
-    },
-    "recommendation_term": { "type": "string" },
-    "last_reported": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "monthly_saving_estimate": { "type": "number" },
-    "reasons": {
-      "type": "array",
-      "items": { "type": "string" }
-    }
-  },
-  "additionalProperties": false
+  "title": "Intent",
+  "type": "object"
 }
