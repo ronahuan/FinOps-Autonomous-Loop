@@ -9,8 +9,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 from .config import (
     STALE_DAYS, MIN_GAP_PCT, MIN_SAVING_USD, CPU_RATE, MEM_GIB_RATE,
     EDA_WEBHOOK_URL, EDA_WEBHOOK_TOKEN,
+    USE_LIVE_API, RH_CLIENT_ID, RH_CLIENT_SECRET,
 )
-from .costmgmt import load_fixture
+from .costmgmt import load_fixture, recommendations
 from .cluster import Cluster
 from .savings import gap_pct, estimate_monthly
 from .gates import decide
@@ -24,7 +25,10 @@ def main() -> None:
     proposals_dir = REPO_ROOT / "observer" / "out" / "proposals"
     proposals_dir.mkdir(parents=True, exist_ok=True)
 
-    recs = load_fixture(fixture_path)
+    if USE_LIVE_API:
+        recs = recommendations(RH_CLIENT_ID, RH_CLIENT_SECRET)
+    else:
+        recs = load_fixture(fixture_path)
     cluster = Cluster()
 
     cfg = {

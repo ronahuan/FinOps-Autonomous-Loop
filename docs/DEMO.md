@@ -1,6 +1,5 @@
 # FinOps Autonomous Loop — Demo
 
-Two terminals. Five steps.
 
 ## Terminal 1 — Setup (run once, leave running)
 
@@ -44,15 +43,15 @@ oc get deploy waster -n finops-demo -o jsonpath='{.spec.template.spec.containers
 
 > "Requests dropped from 500m/512Mi to 50m/64Mi. Limits are unchanged — the pod can still use its original resources if needed. We're saving ~$11/month on this workload."
 
-### 5. Show the savings log
-
-```bash
-cat actor/out/savings.csv
-```
 
 ## Reset
 
 To run the demo again, stop EDA in Terminal 1 (`Ctrl+C`) and `source scripts/reset.sh`
+
+
+
+
+
 
 ## Optional: Rollback demo
 
@@ -80,12 +79,4 @@ The playbook tries to patch requests to 800m CPU. Kubernetes rejects it because 
 oc get deploy waster -n finops-demo -o jsonpath='{.spec.template.spec.containers[0].resources.requests}'
 ```
 
-> Back to `{"cpu":"500m","memory":"512Mi"}` — the original values are restored.
 
-```bash
-cat actor/out/suppress.txt
-```
-
-> `finops-demo/waster` — the workload is suppressed so the same bad recommendation won't be applied again.
-
-> "The automation caught the failure, rolled back to the original state, and blocked future attempts. No human intervention needed."
