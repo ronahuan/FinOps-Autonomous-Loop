@@ -20,7 +20,7 @@
     allowed_workloads: ["waster"]
     expected_api_host: "https://api.crc.testing:6443"
     rollout_timeout: 120
-    out_dir: "{{ playbook_dir }}/../out"
+    out_dir: "{{ lookup('ansible.builtin.env', 'FINOPS_ACTOR_OUT') | default(playbook_dir ~ '/../out', true) }}"
     suppress_file: "{{ out_dir }}/suppress.txt"
     savings_file: "{{ out_dir }}/savings.csv"
     backup_dir: "{{ out_dir }}/backups"

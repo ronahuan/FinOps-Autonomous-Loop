@@ -1,0 +1,38 @@
+---
+- name: FinOps autonomous loop
+  hosts: all
+  sources:
+    - name: finops_webhook
+      ansible.eda.webhook:
+        host: 127.0.0.1
+        port: 5000
+        token: "{{ EDA_WEBHOOK_TOKEN }}"
+  rules:
+    - name: Notify on a proposed approval
+      condition: event.payload.stage == "proposed" and event.payload.decision == "approve"
+      action:
+        run_playbook:
+          name: actor/playbooks/notify-slack.yml
+          extra_vars:
+            namespace: "{{ event.payload.namespace }}"
+            workload: "{{ event.payload.workload }}"
+            current_cpu: "{{ event.payload.current.cpu_request }}"
+            current_mem: "{{ event.payload.current.memory_request }}"
+            rec_cpu: "{{ event.payload.recommended.cpu_request }}"
+            rec_mem: "{{ event.payload.recommended.memory_request }}"
+            saving: "{{ event.payload.monthly_saving_estimate }}"
+            slack_webhook_url: "{{ SLACK_WEBHOOK_URL }}"
+    - name: Remediate an approved change
+      condition: event.payload.stage == "approved" and event.payload.decision == "approve"
+      action:
+        run_playbook:
+          name: actor/playbooks/remediate-safe.yml
+          extra_vars:
+            namespace: "{{ event.payload.namespace }}"
+            workload: "{{ event.payload.workload }}"
+            container: "{{ event.payload.container }}"
+            cpu_req: "{{ event.payload.recommended.cpu_request }}"
+            mem_req: "{{ event.payload.recommended.memory_request }}"
+            expected_cpu: "{{ event.payload.current.cpu_request }}"
+            expected_mem: "{{ event.payload.current.memory_request }}"
+            saving: "{{ event.payload.monthly_saving_estimate }}"

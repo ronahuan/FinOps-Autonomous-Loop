@@ -1,0 +1,37 @@
+- name: Notify Slack of proposed right-sizing
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    # required: namespace, workload, current_cpu, current_mem, rec_cpu, rec_mem, saving, slack_webhook_url
+  tasks:
+    - name: Post Slack notification
+      ansible.builtin.uri:
+        url: "{{ slack_webhook_url }}"
+        method: POST
+        body_format: json
+        body:
+          blocks:
+            - type: header
+              text:
+                type: plain_text
+                text: "FinOps Right-Size Proposal"
+            - type: section
+              fields:
+                - type: mrkdwn
+                  text: "*Workload:*\n{{ namespace }}/{{ workload }}"
+                - type: mrkdwn
+                  text: "*Estimated Saving:*\n${{ saving }}/mo"
+            - type: section
+              fields:
+                - type: mrkdwn
+                  text: "*Current:*\nCPU {{ current_cpu }}, Mem {{ current_mem }}"
+                - type: mrkdwn
+                  text: "*Recommended:*\nCPU {{ rec_cpu }}, Mem {{ rec_mem }}"
+            - type: section
+              text:
+                type: mrkdwn
+                text: "To approve:\n```python approve.py observer/out/proposals/{{ namespace }}__{{ workload }}.json```"
+        status_code: [200]
+      failed_when: false
+      when: slack_webhook_url | length > 0
