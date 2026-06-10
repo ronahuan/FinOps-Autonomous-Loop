@@ -7,6 +7,11 @@
         host: 0.0.0.0
         port: 5000
   rules:
+    - name: Debug - log all events
+      condition: event is defined
+      action:
+        debug:
+          msg: "Received event: {{ event }}"
     - name: Notify on a proposed approval
       condition: event.payload.stage == "proposed" and event.payload.decision == "approve"
       action:
