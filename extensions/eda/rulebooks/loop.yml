@@ -21,7 +21,6 @@
               rec_cpu: "{{ event.payload.recommended.cpu_request }}"
               rec_mem: "{{ event.payload.recommended.memory_request }}"
               saving: "{{ event.payload.monthly_saving_estimate }}"
-              slack_webhook_url: "{{ slack_webhook_url | default('') }}"
     - name: Remediate an approved change
       condition: event.payload.stage == "approved" and event.payload.decision == "approve"
       action:
