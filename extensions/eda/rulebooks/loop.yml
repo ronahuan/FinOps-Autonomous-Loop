@@ -6,11 +6,6 @@
       ansible.eda.pg_listener:
         event_stream: finops-webhook
   rules:
-    - name: Debug - log all events
-      condition: event.payload is defined
-      action:
-        debug:
-          msg: "Received event: {{ event }}"
     - name: Notify on a proposed approval
       condition: event.payload.stage == "proposed" and event.payload.decision == "approve"
       action:
