@@ -35,12 +35,11 @@ def main() -> None:
     Intent.model_validate(intent.model_dump())
 
     url = os.environ.get("EDA_WEBHOOK_URL", "http://127.0.0.1:5000/endpoint")
-    token = os.environ.get("EDA_WEBHOOK_TOKEN", "")
+    username = os.environ.get("EDA_WEBHOOK_USER", "")
+    password = os.environ.get("EDA_WEBHOOK_PASSWORD", "")
 
-    headers = {}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    resp = httpx.post(url, json=intent.model_dump(), headers=headers)
+    auth = (username, password) if username else None
+    resp = httpx.post(url, json=intent.model_dump(), auth=auth)
     resp.raise_for_status()
     print(f"Approved and posted to EDA: {resp.status_code}")
 

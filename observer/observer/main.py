@@ -8,7 +8,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 from .config import (
     STALE_DAYS, MIN_GAP_PCT, MIN_SAVING_USD, CPU_RATE, MEM_GIB_RATE,
-    EDA_WEBHOOK_URL, EDA_WEBHOOK_TOKEN,
+    EDA_WEBHOOK_URL, EDA_WEBHOOK_TOKEN, EDA_WEBHOOK_USER, EDA_WEBHOOK_PASSWORD,
     USE_LIVE_API, RH_CLIENT_ID, RH_CLIENT_SECRET,
 )
 from .costmgmt import load_fixture, recommendations
@@ -64,7 +64,7 @@ def main() -> None:
         proposal_path.write_text(json.dumps(intent.model_dump(), indent=2) + "\n")
 
         print(json.dumps(intent.model_dump(), indent=2))
-        post_to_eda(intent, EDA_WEBHOOK_URL, EDA_WEBHOOK_TOKEN)
+        post_to_eda(intent, EDA_WEBHOOK_URL, EDA_WEBHOOK_USER, EDA_WEBHOOK_PASSWORD)
 
         if decision == "approve":
             print(f"\n  python approve.py observer/out/proposals/{filename}")
