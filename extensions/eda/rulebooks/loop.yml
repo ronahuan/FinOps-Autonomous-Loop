@@ -8,7 +8,7 @@
         port: 5000
   rules:
     - name: Debug - log all events
-      condition: event is defined
+      condition: event.payload is defined
       action:
         debug:
           msg: "Received event: {{ event }}"
