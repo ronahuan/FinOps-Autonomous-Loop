@@ -6,32 +6,21 @@
       ansible.eda.pg_listener:
         event_stream: finops-webhook
   rules:
-    - name: Notify on a proposed approval
+    - name: Launch remediation workflow for approved recommendations
       condition: event.payload.stage == "proposed" and event.payload.decision == "approve"
       action:
-        run_job_template:
-          name: finops-notify-slack
-          organization: Default
-          job_args:
-            extra_vars:
-              namespace: "{{ event.payload.namespace }}"
-              workload: "{{ event.payload.workload }}"
-              current_cpu: "{{ event.payload.current.cpu_request }}"
-              current_mem: "{{ event.payload.current.memory_request }}"
-              rec_cpu: "{{ event.payload.recommended.cpu_request }}"
-              rec_mem: "{{ event.payload.recommended.memory_request }}"
-              saving: "{{ event.payload.monthly_saving_estimate }}"
-    - name: Remediate an approved change
-      condition: event.payload.stage == "approved" and event.payload.decision == "approve"
-      action:
-        run_job_template:
-          name: finops-remediate-safe
+        run_workflow_template:
+          name: finops-remediation-workflow
           organization: Default
           job_args:
             extra_vars:
               namespace: "{{ event.payload.namespace }}"
               workload: "{{ event.payload.workload }}"
               container: "{{ event.payload.container }}"
+              current_cpu: "{{ event.payload.current.cpu_request }}"
+              current_mem: "{{ event.payload.current.memory_request }}"
+              rec_cpu: "{{ event.payload.recommended.cpu_request }}"
+              rec_mem: "{{ event.payload.recommended.memory_request }}"
               cpu_req: "{{ event.payload.recommended.cpu_request }}"
               mem_req: "{{ event.payload.recommended.memory_request }}"
               expected_cpu: "{{ event.payload.current.cpu_request }}"

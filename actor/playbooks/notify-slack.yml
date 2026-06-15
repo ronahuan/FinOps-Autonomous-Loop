@@ -31,7 +31,7 @@
             - type: section
               text:
                 type: mrkdwn
-                text: "To approve:\n```python approve.py observer/out/proposals/{{ namespace }}__{{ workload }}.json```"
+                text: "<{{ aap_url | default('https://sandbox-aap-pm-ronahuan-dev.apps.rm2.thpm.p1.openshiftapps.com') }}/execution/workflow-approvals|:white_check_mark: Click here to approve in AAP>"
         status_code: [200]
       failed_when: false
       when: slack_webhook_url | length > 0
