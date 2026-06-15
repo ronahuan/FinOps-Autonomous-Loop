@@ -31,7 +31,7 @@
             - type: section
               text:
                 type: mrkdwn
-                text: "<{{ aap_url | default('https://sandbox-aap-pm-ronahuan-dev.apps.rm2.thpm.p1.openshiftapps.com') }}/execution/workflow-approvals|:white_check_mark: Click here to approve in AAP>"
+                text: "<{{ aap_url | default('https://sandbox-aap-pm-ronahuan-dev.apps.rm2.thpm.p1.openshiftapps.com') }}/execution/administration/workflow-approvals|:white_check_mark: Click here to approve in AAP>"
         status_code: [200]
       failed_when: false
       when: slack_webhook_url | length > 0
