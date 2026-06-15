@@ -52,8 +52,10 @@ def is_material(
 
 def decide(
     rec: Recommendation, facts: dict, gap: float, saving: float, cfg: dict,
+    now: datetime | None = None,
 ) -> tuple[str, list[str]]:
-    now = datetime.now(timezone.utc)
+    if now is None:
+        now = datetime.now(timezone.utc)
 
     ok, reason = is_fresh(rec, now, cfg["stale_days"])
     if not ok:

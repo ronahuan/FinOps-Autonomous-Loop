@@ -141,37 +141,37 @@ class TestIsMaterial:
 
 class TestDecide:
     def test_healthy_approve(self):
-        decision, reasons = decide(_rec(), _healthy_facts(), 90.0, 11.0, CFG)
+        decision, reasons = decide(_rec(), _healthy_facts(), 90.0, 11.0, CFG, now=NOW)
         assert decision == "approve"
         assert "eligible" in reasons
         assert "fresh" in reasons
         assert "material" in reasons
 
     def test_block_stale(self):
-        decision, reasons = decide(_rec(last_reported=STALE), _healthy_facts(), 90.0, 11.0, CFG)
+        decision, reasons = decide(_rec(last_reported=STALE), _healthy_facts(), 90.0, 11.0, CFG, now=NOW)
         assert decision == "block"
         assert "older" in reasons[0]
 
     def test_block_24h_term(self):
-        decision, reasons = decide(_rec(term="24h"), _healthy_facts(), 90.0, 11.0, CFG)
+        decision, reasons = decide(_rec(term="24h"), _healthy_facts(), 90.0, 11.0, CFG, now=NOW)
         assert decision == "block"
         assert "24h" in reasons[0]
 
     def test_block_live_config_mismatch(self):
         facts = _healthy_facts()
         facts["live_cpu_request"] = "250m"
-        decision, reasons = decide(_rec(), facts, 90.0, 11.0, CFG)
+        decision, reasons = decide(_rec(), facts, 90.0, 11.0, CFG, now=NOW)
         assert decision == "block"
         assert "cpu" in reasons[0]
 
     def test_block_not_eligible(self):
         facts = _healthy_facts()
         facts["exists"] = False
-        decision, reasons = decide(_rec(), facts, 90.0, 11.0, CFG)
+        decision, reasons = decide(_rec(), facts, 90.0, 11.0, CFG, now=NOW)
         assert decision == "block"
         assert "not exist" in reasons[0]
 
     def test_block_not_material(self):
-        decision, reasons = decide(_rec(), _healthy_facts(), 5.0, 1.0, CFG)
+        decision, reasons = decide(_rec(), _healthy_facts(), 5.0, 1.0, CFG, now=NOW)
         assert decision == "block"
         assert "gap" in reasons[0]

@@ -1,7 +1,7 @@
 """Kubernetes cluster client — read-only, scoped to finops-observer token.
 
-SECURITY (S2, S6): builds its Configuration explicitly from env vars.
-Never calls load_kube_config() or load_incluster_config().
+SECURITY (S2, S6): builds its Configuration explicitly from env vars or
+passed parameters. Never calls load_kube_config() or load_incluster_config().
 """
 from __future__ import annotations
 
@@ -12,15 +12,16 @@ from kubernetes.client import AppsV1Api, CoreV1Api
 
 
 class Cluster:
-    def __init__(self) -> None:
-        host = os.environ.get("K8S_AUTH_HOST")
-        token = os.environ.get("K8S_OBSERVER_TOKEN")
+    def __init__(self, host: str | None = None, token: str | None = None, verify_ssl: bool | None = None) -> None:
+        host = host or os.environ.get("K8S_AUTH_HOST")
+        token = token or os.environ.get("K8S_OBSERVER_TOKEN")
         if not host:
             raise RuntimeError("K8S_AUTH_HOST is not set — refusing to start (S2)")
         if not token:
             raise RuntimeError("K8S_OBSERVER_TOKEN is not set — refusing to start (S2)")
 
-        verify_ssl = os.environ.get("K8S_AUTH_VERIFY_SSL", "true").lower() not in ("false", "0", "no")
+        if verify_ssl is None:
+            verify_ssl = os.environ.get("K8S_AUTH_VERIFY_SSL", "true").lower() not in ("false", "0", "no")
 
         conf = kubernetes.client.Configuration()
         conf.host = host
@@ -39,6 +40,7 @@ class Cluster:
                 return {
                     "exists": False,
                     "owner_label": "",
+                    "annotations": {},
                     "has_readiness_probe": False,
                     "recent_oom_or_crash": False,
                     "live_cpu_request": "",
@@ -47,6 +49,7 @@ class Cluster:
             raise
 
         labels = dep.metadata.labels or {}
+        annotations = dep.metadata.annotations or {}
         owner_label = labels.get("owner", "")
 
         has_readiness_probe = False
@@ -80,6 +83,7 @@ class Cluster:
         return {
             "exists": True,
             "owner_label": owner_label,
+            "annotations": annotations,
             "has_readiness_probe": has_readiness_probe,
             "recent_oom_or_crash": recent_oom_or_crash,
             "live_cpu_request": live_cpu_request,

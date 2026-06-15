@@ -148,11 +148,20 @@
           ansible.builtin.debug:
             msg: "OK {{ namespace }}/{{ workload }} -> cpu {{ cpu_req }}, mem {{ mem_req }}"
 
-        - name: Record savings
-          ansible.builtin.lineinfile:
-            path: "{{ savings_file }}"
-            create: true
-            line: "{{ now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') }},{{ namespace }},{{ workload }},{{ saving | default('NA') }}"
+        - name: Record savings to annotation
+          kubernetes.core.k8s:
+            state: patched
+            definition:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: "{{ workload }}"
+                namespace: "{{ namespace }}"
+                annotations:
+                  finops.redhat.com/last-saving: "{{ saving | default('0') }}"
+                  finops.redhat.com/last-remediated: "{{ now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') }}"
+                  finops.redhat.com/patched-cpu: "{{ cpu_req }}"
+                  finops.redhat.com/patched-mem: "{{ mem_req }}"
           when: saving is defined
 
       rescue:
@@ -173,15 +182,21 @@
                         resources:
                           requests: { cpu: "{{ orig_cpu }}", memory: "{{ orig_mem }}" }
 
-        - name: Suppress this workload
-          ansible.builtin.lineinfile:
-            path: "{{ suppress_file }}"
-            create: true
-            line: "{{ namespace }}/{{ workload }}"
+        - name: Suppress this workload for 7 days
+          kubernetes.core.k8s:
+            state: patched
+            definition:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: "{{ workload }}"
+                namespace: "{{ namespace }}"
+                annotations:
+                  finops.redhat.com/suppressed-until: "{{ '%Y-%m-%dT%H:%M:%SZ' | strftime(now(utc=true, fmt='%s') | int + 604800) }}"
 
         - name: Announce rollback
           ansible.builtin.debug:
-            msg: "ROLLED BACK {{ namespace }}/{{ workload }} to cpu {{ orig_cpu }}, mem {{ orig_mem }}"
+            msg: "ROLLED BACK {{ namespace }}/{{ workload }} to cpu {{ orig_cpu }}, mem {{ orig_mem }}. Suppressed for 7 days."
 
         - name: Mark the run failed
           ansible.builtin.fail:
