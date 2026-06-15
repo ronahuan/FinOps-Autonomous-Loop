@@ -3,8 +3,9 @@
   hosts: all
   sources:
     - name: finops_webhook
-      ansible.eda.pg_listener:
-        event_stream: finops-webhook
+      ansible.eda.webhook:
+        host: 0.0.0.0
+        port: 5000
   rules:
     - name: Launch remediation workflow for approved recommendations
       condition: event.payload.stage == "proposed" and event.payload.decision == "approve"
