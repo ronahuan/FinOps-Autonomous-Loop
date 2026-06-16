@@ -21,8 +21,6 @@
     expected_api_host: "{{ lookup('ansible.builtin.env', 'K8S_AUTH_HOST') }}"
     rollout_timeout: 120
     out_dir: "{{ lookup('ansible.builtin.env', 'FINOPS_ACTOR_OUT') | default(playbook_dir ~ '/../out', true) }}"
-    suppress_file: "{{ out_dir }}/suppress.txt"
-    savings_file: "{{ out_dir }}/savings.csv"
     backup_dir: "{{ out_dir }}/backups"
     force_fail_after_patch: false
     # required: namespace, workload, container, cpu_req, mem_req ; optional: saving, expected_cpu, expected_mem

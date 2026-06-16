@@ -10,11 +10,11 @@ from observer.costmgmt import load_fixture
 from observer.cluster import Cluster
 from observer.savings import gap_pct, estimate_monthly
 from observer.gates import decide
+from observer.main import _is_suppressed
 
 
 def main() -> None:
     fixture_path = REPO_ROOT / "observer" / "tests" / "fixtures" / "recommendation.json"
-    suppress_path = REPO_ROOT / "actor" / "out" / "suppress.txt"
 
     recs = load_fixture(fixture_path)
     cluster = Cluster()
@@ -27,12 +27,7 @@ def main() -> None:
 
     for rec in recs:
         facts = cluster.workload_facts(rec.namespace, rec.workload, rec.container)
-
-        suppressed = False
-        if suppress_path.exists():
-            suppressed_workloads = suppress_path.read_text().strip().splitlines()
-            suppressed = f"{rec.namespace}/{rec.workload}" in suppressed_workloads
-        facts["suppressed"] = suppressed
+        facts["suppressed"] = _is_suppressed(facts)
 
         gap = gap_pct(rec.current, rec.recommended)
         saving = estimate_monthly(rec, CPU_RATE, MEM_GIB_RATE)
