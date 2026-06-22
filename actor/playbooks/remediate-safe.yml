@@ -1,6 +1,7 @@
-# Patches a Deployment's REQUESTS only. module_defaults forces the scoped actor
-# token on every k8s call (no kubeconfig fallback). Backs up the Deployment,
-# verifies the rollout explicitly, and AUTO-ROLLS-BACK on any failure.
+# Patches a Deployment's REQUESTS only, on CRC only, on finops-demo/waster only.
+# module_defaults forces the scoped actor token on every k8s call (no kubeconfig
+# fallback). Backs up the Deployment, verifies the rollout explicitly, and
+# AUTO-ROLLS-BACK on any failure.
 - name: Safe right-size remediation
   hosts: localhost
   connection: local
@@ -15,6 +16,9 @@
       api_key: "{{ lookup('ansible.builtin.env', 'K8S_AUTH_API_KEY') }}"
       validate_certs: false
   vars:
+    allowed_namespaces: ["finops-demo"]
+    allowed_workloads: ["waster"]
+    expected_api_host: "{{ lookup('ansible.builtin.env', 'K8S_AUTH_HOST') }}"
     rollout_timeout: 120
     out_dir: "{{ lookup('ansible.builtin.env', 'FINOPS_ACTOR_OUT') | default(playbook_dir ~ '/../out', true) }}"
     backup_dir: "{{ out_dir }}/backups"
@@ -36,6 +40,24 @@
         that:
           - lookup('ansible.builtin.env', 'K8S_AUTH_API_KEY') | length > 20
         fail_msg: "K8S_AUTH_API_KEY missing/short. Refusing without the scoped actor token."
+
+    - name: SAFETY - refuse any cluster but CRC
+      ansible.builtin.assert:
+        that:
+          - lookup('ansible.builtin.env', 'K8S_AUTH_HOST') == expected_api_host
+        fail_msg: "K8S_AUTH_HOST != CRC. Refusing."
+
+    - name: SAFETY - refuse namespaces off the allowlist
+      ansible.builtin.assert:
+        that:
+          - namespace in allowed_namespaces
+        fail_msg: "Namespace {{ namespace }} not allowed."
+
+    - name: SAFETY - refuse workloads off the allowlist
+      ansible.builtin.assert:
+        that:
+          - workload in allowed_workloads
+        fail_msg: "Workload {{ workload }} not allowed (only waster)."
 
     - name: Read the target Deployment
       kubernetes.core.k8s_info:
