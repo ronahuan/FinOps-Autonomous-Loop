@@ -3,14 +3,18 @@
   connection: local
   gather_facts: false
   vars:
-    # required: namespace, workload, current_cpu, current_mem, rec_cpu, rec_mem, saving, slack_webhook_url
+    approval_base_url: "{{ lookup('ansible.builtin.env', 'APPROVAL_SERVER_URL') | default('http://localhost:8085', true) }}"
+    approve_link: "{{ approval_base_url }}/approve?namespace={{ namespace | urlencode }}&workload={{ workload | urlencode }}&container={{ container | urlencode }}&cluster={{ cluster | urlencode }}&current_cpu={{ current_cpu | urlencode }}&current_mem={{ current_mem | urlencode }}&rec_cpu={{ rec_cpu | urlencode }}&rec_mem={{ rec_mem | urlencode }}&saving={{ saving | urlencode }}"
+    deny_link: "{{ approval_base_url }}/deny?namespace={{ namespace | urlencode }}&workload={{ workload | urlencode }}"
+    # required: namespace, workload, container, cluster, current_cpu, current_mem, rec_cpu, rec_mem, saving, slack_webhook_url
   tasks:
-    - name: Post Slack notification
+    - name: Post Slack notification with approve/deny links
       ansible.builtin.uri:
         url: "{{ slack_webhook_url }}"
         method: POST
         body_format: json
         body:
+          text: "FinOps Right-Size Proposal: {{ namespace }}/{{ workload }}"
           blocks:
             - type: header
               text:
@@ -31,7 +35,7 @@
             - type: section
               text:
                 type: mrkdwn
-                text: "<{{ aap_url | default('https://sandbox-aap-pm-ronahuan-dev.apps.rm2.thpm.p1.openshiftapps.com') }}/execution/administration/workflow-approvals|:white_check_mark: Click here to approve in AAP>"
+                text: ":white_check_mark: <{{ approve_link }}|*Approve*>     :x: <{{ deny_link }}|*Deny*>"
         status_code: [200]
       failed_when: false
       when: slack_webhook_url | length > 0

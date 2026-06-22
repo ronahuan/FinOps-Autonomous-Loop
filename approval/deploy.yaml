@@ -1,0 +1,66 @@
+# Deploy the approval server on the Developer Sandbox.
+# The Secret finops-observer-config must exist with EDA credentials.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finops-approval
+  namespace: finops-demo
+  labels:
+    app: finops-approval
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: finops-approval
+  template:
+    metadata:
+      labels:
+        app: finops-approval
+    spec:
+      containers:
+        - name: approval
+          image: quay.io/pm_ronahuan/finops-approval:latest
+          ports:
+            - containerPort: 8085
+          envFrom:
+            - secretRef:
+                name: finops-observer-config
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8085
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: finops-approval
+  namespace: finops-demo
+spec:
+  selector:
+    app: finops-approval
+  ports:
+    - port: 8085
+      targetPort: 8085
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: finops-approval
+  namespace: finops-demo
+spec:
+  to:
+    kind: Service
+    name: finops-approval
+  port:
+    targetPort: 8085
+  tls:
+    termination: edge

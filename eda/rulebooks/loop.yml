@@ -18,6 +18,8 @@
             extra_vars:
               namespace: "{{ event.payload.namespace }}"
               workload: "{{ event.payload.workload }}"
+              container: "{{ event.payload.container }}"
+              cluster: "{{ event.payload.cluster }}"
               current_cpu: "{{ event.payload.current.cpu_request }}"
               current_mem: "{{ event.payload.current.memory_request }}"
               rec_cpu: "{{ event.payload.recommended.cpu_request }}"
