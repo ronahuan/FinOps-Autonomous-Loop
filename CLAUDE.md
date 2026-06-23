@@ -136,8 +136,7 @@ metadata: { name: finops-actor-patch, namespace: finops-demo }
 rules:
   - apiGroups: ["apps"]
     resources: ["deployments"]
-    resourceNames: ["waster"]      # ONLY the waster Deployment
-    verbs: ["get", "patch"]        # no list/watch (incompatible with resourceNames), no delete, no create
+    verbs: ["get", "patch"]        # no delete, no create
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -160,19 +159,20 @@ They are **non-expiring**, read from the `finops-actor-token` / `finops-observer
 ### S2. No kubeconfig fallback (critical) — both the Ansible Actor and the Python Observer
 A host check alone is not enough — if the token env var is missing, the client silently falls back to the admin `KUBECONFIG`, bypassing the RBAC. Therefore:
 - The **Actor** playbook MUST set `host`, `api_key`, and `validate_certs` explicitly on **every** k8s module via `module_defaults` (so it cannot read the kubeconfig), and **refuse to run unless `K8S_AUTH_API_KEY` is present.**
-- The **Observer's `Cluster()`** MUST fail closed if `K8S_AUTH_HOST` or `K8S_OBSERVER_TOKEN` is missing, build its `kubernetes.client.Configuration` explicitly from those env vars, and **never call `load_kube_config()` or `load_incluster_config()`.**
+- The **Observer's `Cluster()`** MUST fail closed if `K8S_AUTH_HOST` or `K8S_OBSERVER_TOKEN` is missing **when running locally**. It MUST **never call `load_kube_config()`.**
+- **Exception — in-cluster ServiceAccount mount:** when the Observer runs as a CronJob pod with `serviceAccountName: finops-observer`, Kubernetes injects the scoped token automatically. `Cluster()` may use `load_incluster_config()` in this case (detected by the presence of `/var/run/secrets/kubernetes.io/serviceaccount/token`). This is safe because the injected token has the same read-only RBAC as the explicit `K8S_OBSERVER_TOKEN`. Explicit host/token args or env vars always take precedence over incluster detection.
 
-### S3. CRC only
-Every write play asserts `lookup('env','K8S_AUTH_HOST') == https://api.crc.testing:6443` and aborts otherwise.
+### S3. Cluster scope (was: CRC only)
+~~Every write play asserts CRC host and aborts otherwise.~~ **Removed** — the Actor now supports any cluster. The RBAC Role (namespace-scoped) is the real boundary; it can only patch Deployments in its own namespace.
 
-### S4. Allowlists
-The Actor runs only when `namespace` is in `["finops-demo"]` **and** `workload` is in `["waster"]`. Anything else → refuse.
+### S4. Namespace scope (was: hardcoded allowlists)
+~~The Actor refused anything outside `finops-demo`/`waster`.~~ **Removed** — the namespace-scoped RBAC Role already enforces namespace isolation. The `resourceNames` restriction on `waster` is removed so the Actor can patch any Deployment in its namespace. The human approval gate (S7) prevents unwanted patches.
 
 ### S5. Patch-only, requests-only
 Only the `patch` operation, only on the `waster` Deployment, modifying only `resources.requests`. Never `delete`, `create`, scale-to-zero, `apply -f <arbitrary>`, `resources.limits`, system namespaces, or any other namespace/kind.
 
 ### S6. Observer is read-only
-The Observer never writes to any cluster (and per S2 it builds its client from env vars, never the kubeconfig).
+The Observer never writes to any cluster (and per S2 it builds its client from env vars or incluster ServiceAccount mount, never the kubeconfig).
 
 ### S7. Approval integrity (the gate cannot be bypassed)
 - `approve.py` refuses anything that is not a `proposed` intent with `decision == "approve"` — a blocked or already-approved proposal cannot be sent for remediation.

@@ -1,0 +1,23 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: finops-observer
+  namespace: finops-demo
+spec:
+  schedule: "0 */6 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: finops-observer
+          restartPolicy: Never
+          containers:
+            - name: observer
+              image: quay.io/pm_ronahuan/finops-observer:latest
+              envFrom:
+                - secretRef:
+                    name: finops-observer-config
+                - configMapRef:
+                    name: finops-observer-settings

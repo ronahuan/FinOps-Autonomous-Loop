@@ -15,5 +15,22 @@
     },
     "recommendation_term": "15d",
     "last_reported": "2026-06-15T13:38:38Z"
+  },
+  {
+    "cluster": "crc",
+    "namespace": "finops-demo",
+    "workload": "web-frontend",
+    "workload_type": "Deployment",
+    "container": "web-frontend",
+    "current": {
+      "cpu_request": "1",
+      "memory_request": "1Gi"
+    },
+    "recommended": {
+      "cpu_request": "100m",
+      "memory_request": "128Mi"
+    },
+    "recommendation_term": "15d",
+    "last_reported": "2026-06-15T13:38:38Z"
   }
 ]

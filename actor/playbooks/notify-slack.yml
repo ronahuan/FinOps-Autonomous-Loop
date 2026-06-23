@@ -2,8 +2,6 @@
   hosts: localhost
   connection: local
   gather_facts: false
-  vars:
-    # required: namespace, workload, current_cpu, current_mem, rec_cpu, rec_mem, saving, slack_webhook_url
   tasks:
     - name: Post Slack notification
       ansible.builtin.uri:

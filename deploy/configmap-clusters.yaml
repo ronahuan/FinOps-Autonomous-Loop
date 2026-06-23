@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: finops-observer-clusters
+  namespace: finops-demo
+data:
+  clusters.json: |
+    {
+      "clusters": {
+        "crc": {
+          "api_host": "https://api.crc.testing:6443",
+          "token_env": "K8S_OBSERVER_TOKEN",
+          "verify_ssl": false
+        }
+      }
+    }

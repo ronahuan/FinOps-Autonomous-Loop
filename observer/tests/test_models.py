@@ -64,10 +64,13 @@ class TestIntent:
 class TestLoadFixture:
     def test_loads_fixture_file(self):
         recs = load_fixture(FIXTURE)
-        assert len(recs) == 1
+        assert len(recs) == 2
         assert recs[0].workload == "waster"
         assert recs[0].current.cpu_request == "500m"
         assert recs[0].recommended.cpu_request == "50m"
+        assert recs[1].workload == "web-frontend"
+        assert recs[1].current.cpu_request == "1"
+        assert recs[1].recommended.cpu_request == "100m"
 
     def test_fixture_has_no_intent_fields(self):
         import json

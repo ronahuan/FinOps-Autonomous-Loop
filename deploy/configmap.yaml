@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: finops-observer-settings
+  namespace: finops-demo
+data:
+  STALE_DAYS: "2"
+  MIN_GAP_PCT: "20"
+  MIN_SAVING_USD: "5"
+  CPU_RATE: "0.03"
+  MEM_GIB_RATE: "0.005"
+  USE_LIVE_API: "true"
