@@ -7,10 +7,15 @@ data:
   clusters.json: |
     {
       "clusters": {
-        "crc": {
-          "api_host": "https://api.crc.testing:6443",
-          "token_env": "K8S_OBSERVER_TOKEN",
-          "verify_ssl": false
+        "rosa1": {
+          "api_host": "https://api.finops-rosa-1.1b0w.p3.openshiftapps.com:443",
+          "token_env": "K8S_OBSERVER_TOKEN_ROSA1",
+          "verify_ssl": true
+        },
+        "rosa2": {
+          "api_host": "https://api.finops-rosa-2.uadb.p3.openshiftapps.com:443",
+          "token_env": "K8S_OBSERVER_TOKEN_ROSA2",
+          "verify_ssl": true
         }
       }
     }

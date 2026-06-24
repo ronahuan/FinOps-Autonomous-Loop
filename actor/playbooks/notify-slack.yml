@@ -17,7 +17,11 @@
             - type: section
               fields:
                 - type: mrkdwn
+                  text: "*Cluster:*\n{{ cluster | default('unknown') }}"
+                - type: mrkdwn
                   text: "*Workload:*\n{{ namespace }}/{{ workload }}"
+            - type: section
+              fields:
                 - type: mrkdwn
                   text: "*Estimated Saving:*\n${{ saving }}/mo"
             - type: section

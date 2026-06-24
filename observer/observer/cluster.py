@@ -1,36 +1,49 @@
 """Kubernetes cluster client — read-only, scoped to finops-observer token.
 
 SECURITY (S2, S6): builds its Configuration explicitly from env vars or
-passed parameters. Never calls load_kube_config() or load_incluster_config().
+passed parameters. Never calls load_kube_config(). May use
+load_incluster_config() when running as a pod with a scoped ServiceAccount.
 """
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import kubernetes.client
+import kubernetes.config
 from kubernetes.client import AppsV1Api, CoreV1Api
+
+SA_TOKEN_PATH = Path("/var/run/secrets/kubernetes.io/serviceaccount/token")
 
 
 class Cluster:
     def __init__(self, host: str | None = None, token: str | None = None, verify_ssl: bool | None = None) -> None:
         host = host or os.environ.get("K8S_AUTH_HOST")
         token = token or os.environ.get("K8S_OBSERVER_TOKEN")
+
+        if host and token:
+            if verify_ssl is None:
+                verify_ssl = os.environ.get("K8S_AUTH_VERIFY_SSL", "true").lower() not in ("false", "0", "no")
+
+            conf = kubernetes.client.Configuration()
+            conf.host = host
+            conf.verify_ssl = verify_ssl
+
+            api_client = kubernetes.client.ApiClient(conf)
+            api_client.set_default_header("Authorization", f"Bearer {token}")
+            self._apps = AppsV1Api(api_client)
+            self._core = CoreV1Api(api_client)
+            return
+
+        if SA_TOKEN_PATH.exists():
+            kubernetes.config.load_incluster_config()
+            self._apps = AppsV1Api()
+            self._core = CoreV1Api()
+            return
+
         if not host:
-            raise RuntimeError("K8S_AUTH_HOST is not set — refusing to start (S2)")
-        if not token:
-            raise RuntimeError("K8S_OBSERVER_TOKEN is not set — refusing to start (S2)")
-
-        if verify_ssl is None:
-            verify_ssl = os.environ.get("K8S_AUTH_VERIFY_SSL", "true").lower() not in ("false", "0", "no")
-
-        conf = kubernetes.client.Configuration()
-        conf.host = host
-        conf.verify_ssl = verify_ssl
-
-        api_client = kubernetes.client.ApiClient(conf)
-        api_client.set_default_header("Authorization", f"Bearer {token}")
-        self._apps = AppsV1Api(api_client)
-        self._core = CoreV1Api(api_client)
+            raise RuntimeError("K8S_AUTH_HOST is not set and no in-cluster SA token found — refusing to start (S2)")
+        raise RuntimeError("K8S_OBSERVER_TOKEN is not set and no in-cluster SA token found — refusing to start (S2)")
 
     def workload_facts(self, namespace: str, workload: str, container: str) -> dict:
         try:

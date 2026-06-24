@@ -82,6 +82,12 @@ def _parse(raw: dict) -> Recommendation:
     return Recommendation.model_validate(raw)
 
 
-def load_fixture(path: str | Path) -> list[Recommendation]:
+def load_fixture(path: str | Path, refresh_dates: bool = True) -> list[Recommendation]:
     data = json.loads(Path(path).read_text())
-    return [_parse(item) for item in data]
+    recs = [_parse(item) for item in data]
+    if refresh_dates:
+        from datetime import datetime, timezone, timedelta
+        fresh = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        for rec in recs:
+            rec.last_reported = fresh
+    return recs

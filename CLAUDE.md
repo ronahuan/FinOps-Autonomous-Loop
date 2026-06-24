@@ -8,7 +8,7 @@
 
 An internship POC that turns Red Hat Cost Management right-sizing recommendations into **safe, reversible, human-approved** remediation. Red Hat's engine detects over-provisioned workloads and exposes the recommendation via an API; this project decides which to act on, proposes them for approval, applies the approved ones by lowering resource **requests**, verifies the rollout, and **auto-rolls-back** on failure.
 
-We do **not** generate recommendations — Red Hat does. **The MVP runs off a local fixture; the live Cost Management adapter (`costmgmt.recommendations()`) is intentionally unbuilt.** Do not describe the demo as "connected to Cost Management / Lightspeed" until that adapter is built.
+We do **not** generate recommendations — Red Hat does. The live Cost Management adapter is built (`costmgmt.recommendations()`); toggle via `USE_LIVE_API=true/false`. The fixture remains the default for local dev.
 
 Core principle: **autonomous where low-risk, approval-based where medium-risk, recommendation-only where high-risk, reversible everywhere.** The MVP runs only **approve or block** — every applied change passes a human gate.
 
@@ -16,26 +16,34 @@ Core principle: **autonomous where low-risk, approval-based where medium-risk, r
 
 ## Architecture (the loop)
 
+### ROSA deployment (primary)
 ```
-Cost Management API (fixture for now) ─┐
-OpenShift API (CRC, read)            ─┴─► Observer (Python, read-only)
-                                            │ decides approve/block, emits ONE intent
-                                            ▼
-                                          EDA (event hub, 127.0.0.1)
-                                       proposed+approve → Slack notify
-                                       approved → Actor
-                                            ▼
-                                      Actor (Ansible, write-narrow)
-                              backup → patch requests → verify rollout
-                                            │
-                                     healthy? ── no ──► rollback (restore requests) + suppress
-                                            │
-                                           yes ──► record savings
+Cost Management API ──┐
+OpenShift API (multi) ┴──► Observer CronJob (read-only)
+                               │ decides approve/block, POSTs intent
+                               ▼
+                         Approval Server (Deployment + Route)
+                               │ sends Slack notification with Approve/Deny buttons
+                               ▼
+                         Human clicks Approve ──► creates Actor K8s Job
+                         Human clicks Deny   ──► suppresses workload 7 days
+                               │
+                         Actor Job (Ansible, write-narrow)
+                   backup → patch requests → verify rollout
+                               │
+                        healthy? ── no ──► rollback + suppress + Slack alert
+                               │
+                              yes ──► record savings + Slack success
 ```
 
-- **Observer** decides (including eligibility, live-config match, materiality). Read-only. Its only output is a POST to the EDA webhook.
-- **EDA** routes events to playbooks. Plumbing, not the brain.
-- **Actor** is the *only* component that writes, and only ever patches `resources.requests` on the `waster` Deployment.
+### Local dev (CRC fallback)
+```
+Observer → EDA (127.0.0.1) → Slack notify → approve.py → EDA → Actor playbook
+```
+
+- **Observer** decides (eligibility, live-config match, materiality). Read-only. Multi-cluster via `clusters.json`.
+- **Approval Server** coordinates the flow on ROSA: receives intents, sends Slack buttons, creates Actor Jobs. Replaces EDA for standalone ROSA. If `EDA_WEBHOOK_URL` is set, falls back to EDA/AAP.
+- **Actor** is the *only* component that writes, and only patches `resources.requests`. Multi-cluster via per-cluster env vars (`K8S_AUTH_HOST_<CLUSTER>`, `K8S_AUTH_API_KEY_<CLUSTER>`).
 
 ---
 
@@ -44,6 +52,7 @@ OpenShift API (CRC, read)            ─┴─► Observer (Python, read-only)
 ```
 finops-autonomous-loop/
 ├── CLAUDE.md
+├── Dockerfile                       ← multi-target: observer, actor, approval
 ├── finops-rbac.yaml                 ← pinned, run once (SECURITY S1)
 ├── .env / .env.example              ← stable config only (no KUBECONFIG, no tokens)
 ├── .gitignore
@@ -51,18 +60,27 @@ finops-autonomous-loop/
 ├── contracts/remediation-intent.schema.json
 ├── observer/
 │   ├── pyproject.toml
+│   ├── clusters.json                ← multi-cluster config (CRC + ROSA)
 │   ├── observer/{config,models,auth,costmgmt,cluster,savings,gates,notify,main}.py
 │   ├── check_eligibility.py
-│   └── tests/{fixtures/recommendation.json, test_models.py, test_savings.py, test_gates.py}
+│   └── tests/{fixtures/recommendation.json, test_models.py, test_savings.py, test_gates.py, test_cluster.py}
 │   └── out/proposals/               ← generated intents (gitignored)
+├── approval/
+│   └── server.py                    ← approval server (ROSA coordinator)
 ├── actor/
 │   ├── test-workload.yaml
 │   ├── collections/requirements.yml
 │   ├── inventory/hosts.yml
-│   ├── playbooks/{remediate-safe.yml, notify-slack.yml}   ← remediate-safe.yml is pinned
-│   └── out/{suppress.txt, savings.csv, backups/}          ← generated (gitignored)
-├── eda/rulebooks/loop.yml           ← pinned
-└── approve.py
+│   ├── playbooks/{remediate-safe.yml, notify-slack.yml}
+│   └── out/{backups/}               ← generated (gitignored)
+├── deploy/
+│   ├── cronjob.yaml                 ← Observer CronJob
+│   ├── approval-server.yaml         ← Approval Server Deployment + Service + Route
+│   ├── configmap.yaml               ← Observer settings
+│   ├── configmap-clusters.yaml      ← Multi-cluster config
+│   └── secret-cluster-tokens.yaml   ← Per-cluster tokens (template, never real values)
+├── eda/rulebooks/loop.yml           ← EDA/AAP integration (optional on ROSA)
+└── approve.py                       ← local dev approval CLI
 ```
 
 ---
@@ -103,7 +121,7 @@ Naming note: `decision: "approve"` means *the Observer approved this recommendat
 
 ## ⛔ SECURITY — NON-NEGOTIABLE
 
-This account has broad privileges. The goal of these rules is that the automation is **structurally confined to CRC and to patching the one `waster` Deployment.** Harm to a real cluster is highly unlikely *provided the verify in Step 0 passes and the safeguards are not overridden* — a human exporting the wrong token or running `oc` as admin against another cluster is still a path, so don't. This is **not** "impossible," it is "confined and gated."
+The goal of these rules is that the automation is **structurally confined to its namespace by RBAC and to patching only `resources.requests`.** Each cluster's ServiceAccounts have namespace-scoped roles — the Actor can only `get` and `patch` Deployments in `finops-demo`. The human approval gate (Slack buttons or AAP) prevents unwanted patches. This is **not** "impossible to misuse," it is "confined and gated."
 
 ### S1. Scoped ServiceAccounts — NOT the privileged user (PINNED `finops-rbac.yaml`)
 ```yaml
@@ -149,12 +167,34 @@ kind: RoleBinding
 metadata: { name: finops-actor-binding, namespace: finops-demo }
 roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: finops-actor-patch }
 subjects: [{ kind: ServiceAccount, name: finops-actor, namespace: finops-demo }]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: finops-approval, namespace: finops-demo }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: finops-approval-coordinator, namespace: finops-demo }
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "patch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: finops-approval-binding, namespace: finops-demo }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: finops-approval-coordinator }
+subjects: [{ kind: ServiceAccount, name: finops-approval, namespace: finops-demo }]
 ```
-The tooling authenticates with **two distinct tokens**, never the admin user:
-- **`K8S_OBSERVER_TOKEN`** — the read-only `finops-observer` token, used by the Python Observer (`cluster.py`).
-- **`K8S_AUTH_API_KEY`** — the `finops-actor` token (patch `waster` only), used by Ansible (this env name is required by `kubernetes.core`).
+The tooling authenticates with **three distinct ServiceAccounts**, never the admin user:
+- **`finops-observer`** — read-only token, used by the Python Observer (`cluster.py`). Per-cluster: `K8S_OBSERVER_TOKEN_<CLUSTER>`.
+- **`finops-actor`** — patch-only token, used by Ansible Actor (`remediate-safe.yml`). Per-cluster: `K8S_AUTH_API_KEY_<CLUSTER>`.
+- **`finops-approval`** — coordinator token, used by the Approval Server. Can patch Deployment annotations (deny/suppress) and create Actor Jobs.
 
-They are **non-expiring**, read from the `finops-actor-token` / `finops-observer-token` Secrets (each a `kubernetes.io/service-account-token` Secret annotated with `kubernetes.io/service-account.name`, created in Step 0c): `oc get secret finops-actor-token -n finops-demo -o jsonpath='{.data.token}' | base64 -d`. Both also need `K8S_AUTH_HOST=https://api.crc.testing:6443` and `K8S_AUTH_VERIFY_SSL=false`. Re-export per terminal; no re-minting.
+**Local dev:** tokens exported per terminal from SA token Secrets. **ROSA:** tokens stored in K8s Secrets (`finops-cluster-tokens`, `finops-observer-config`), mounted into pods — no manual exports.
 
 ### S2. No kubeconfig fallback (critical) — both the Ansible Actor and the Python Observer
 A host check alone is not enough — if the token env var is missing, the client silently falls back to the admin `KUBECONFIG`, bypassing the RBAC. Therefore:
@@ -181,9 +221,9 @@ The Observer never writes to any cluster (and per S2 it builds its client from e
 
 ### Rules for Claude Code (the agent) — follow literally
 - **NEVER** run `oc`/`kubectl` against any cluster but CRC (`api.crc.testing`). Don't switch contexts or `oc login` to anything.
-- **NEVER** write code/commands that delete resources, scale to zero, or touch `resources.limits`, system namespaces, or any namespace/workload outside the allowlists.
-- **ALWAYS** keep the S2 `module_defaults` + token-present assert, the S3 CRC guard, the S4 allowlists, and the S7 approval-integrity checks in any write play; authenticate as the scoped tokens, never admin.
-- **ALWAYS** make the Python `Cluster()` fail closed and build its config from env vars — never `load_kube_config()`.
+- **NEVER** write code/commands that delete resources, scale to zero, or touch `resources.limits`, system namespaces, or any other namespace/kind.
+- **ALWAYS** keep the S2 `module_defaults` + token-present assert and the S7 approval-integrity checks in any write play; authenticate as the scoped tokens, never admin.
+- **ALWAYS** make the Python `Cluster()` fail closed and build its config from env vars or incluster ServiceAccount mount — never `load_kube_config()`.
 - Before any state-changing command, state what it does and confirm it targets CRC + `finops-demo`/`waster`.
 - If a task seems to need broader permissions, deletion, another cluster, or another workload — **stop and ask.** Do not work around these rules. Read-only `get`/`describe`/`logs` against CRC are fine without asking.
 
@@ -194,22 +234,22 @@ The Observer never writes to any cluster (and per S2 it builds its client from e
 1. Build in the order of the prompts (Step 0 → P1 → P10). Don't start a step until the previous Verify passes.
 2. `git add . && git commit -m "step N"` after each green Verify.
 3. Develop against `observer/tests/fixtures/recommendation.json`, not live data. Swap to the live API only at the very end.
-4. **Reset between runs:** `rm -f actor/out/suppress.txt actor/out/savings.csv && oc apply -f actor/test-workload.yaml` (clearing suppression too, or the happy path stays blocked after a failure test).
+4. **Reset between runs:** `oc apply -f actor/test-workload.yaml` then clear suppression annotations: `oc annotate deploy waster -n finops-demo finops.redhat.com/suppressed-until-` (or the happy path stays blocked after a failure test).
 5. Keep secrets out of git. Tokens and `KUBECONFIG` are exported per terminal, never stored in `.env`.
 
 ## Environment variables
 
 **`.env` (stable config only — NO `KUBECONFIG`, NO tokens):** `RH_CLIENT_ID`, `RH_CLIENT_SECRET`, `CRC_API_HOST=https://api.crc.testing:6443`, `EDA_WEBHOOK_URL=http://127.0.0.1:5000/endpoint`, `EDA_WEBHOOK_TOKEN`, `SLACK_WEBHOOK_URL`, `STALE_DAYS=2`, `MIN_GAP_PCT=20`, `MIN_SAVING_USD=5`, `CPU_RATE=0.03`, `MEM_GIB_RATE=0.005`.
 
-**Exported per terminal (never in `.env`):** `KUBECONFIG` (Step 0a); `K8S_AUTH_HOST`, `K8S_AUTH_VERIFY_SSL` (shared); `K8S_AUTH_API_KEY` (Actor token, Ansible); `K8S_OBSERVER_TOKEN` (Observer token, Python).
+**Exported per terminal (never in `.env`):** `KUBECONFIG` (Step 0a); `K8S_AUTH_HOST`, `K8S_AUTH_VERIFY_SSL` (shared); `K8S_AUTH_API_KEY` (Actor token, Ansible); `K8S_OBSERVER_TOKEN` (Observer token, Python). **Multi-cluster:** per-cluster env vars follow the convention `K8S_AUTH_HOST_<CLUSTER>` and `K8S_AUTH_API_KEY_<CLUSTER>` (e.g., `K8S_AUTH_HOST_CRC`, `K8S_AUTH_API_KEY_ROSA`). The Actor falls back to the base `K8S_AUTH_HOST` / `K8S_AUTH_API_KEY` when per-cluster vars are not set.
 
 ## Decisions & honest limits (so the agent doesn't "improve" them)
 
 - **No concurrency lock** in the MVP — single-operator, sequential demo, no concurrent writers. (A filesystem lock is future work for unattended/multi-operator use.)
-- **Suppression is a permanent flag** in `actor/out/suppress.txt`, cleared on reset — not yet a timed cooldown.
+- **Suppression is annotation-based** (`finops.redhat.com/suppressed-until`) — 7-day TTL set by the Actor after a rollback, checked by the Observer.
 - **"Recent OOM/crash"** = current pod status + restart count, not a time-windowed incident history (adequate for the demo).
 - **Backup file** is an audit artifact; the rollback mechanism is a minimal request patch (to avoid resourceVersion conflicts).
-- **Live Cost Management API is unbuilt** (`costmgmt.recommendations()`); the MVP uses a fixture.
+- **Live Cost Management API is built** (`costmgmt.recommendations()`); toggle via `USE_LIVE_API=true/false`. The fixture remains the default for local dev.
 - The forced-failure rollback demo uses `force_fail_after_patch=true` (valid patch applies, rolls out, then a forced failure triggers rollback) — the strongest, most honest rollback demonstration.
 CLAUDE (1).md
 Displaying CLAUDE (1).md.

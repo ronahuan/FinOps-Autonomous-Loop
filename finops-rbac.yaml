@@ -27,8 +27,7 @@ metadata: { name: finops-actor-patch, namespace: finops-demo }
 rules:
   - apiGroups: ["apps"]
     resources: ["deployments"]
-    resourceNames: ["waster"]
-    verbs: ["get", "patch"]
+    verbs: ["get", "patch"]        # no delete, no create
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -41,3 +40,24 @@ kind: RoleBinding
 metadata: { name: finops-actor-binding, namespace: finops-demo }
 roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: finops-actor-patch }
 subjects: [{ kind: ServiceAccount, name: finops-actor, namespace: finops-demo }]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: finops-approval, namespace: finops-demo }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: finops-approval-coordinator, namespace: finops-demo }
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "patch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: finops-approval-binding, namespace: finops-demo }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: finops-approval-coordinator }
+subjects: [{ kind: ServiceAccount, name: finops-approval, namespace: finops-demo }]

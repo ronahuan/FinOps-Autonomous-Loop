@@ -16,6 +16,7 @@
           organization: Default
           job_args:
             extra_vars:
+              cluster: "{{ event.payload.cluster }}"
               namespace: "{{ event.payload.namespace }}"
               workload: "{{ event.payload.workload }}"
               current_cpu: "{{ event.payload.current.cpu_request }}"
@@ -32,6 +33,7 @@
           organization: Default
           job_args:
             extra_vars:
+              cluster: "{{ event.payload.cluster }}"
               namespace: "{{ event.payload.namespace }}"
               workload: "{{ event.payload.workload }}"
               container: "{{ event.payload.container }}"

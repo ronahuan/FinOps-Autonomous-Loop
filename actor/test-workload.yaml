@@ -33,3 +33,39 @@ spec:
             exec:
               command: ["true"]
             initialDelaySeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-frontend
+  namespace: finops-demo
+  labels:
+    owner: finops-intern
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: web-frontend
+  template:
+    metadata:
+      labels:
+        app: web-frontend
+        owner: finops-intern
+    spec:
+      containers:
+        - name: web-frontend
+          image: registry.access.redhat.com/ubi9/ubi
+          command: ["sleep", "infinity"]
+          resources:
+            requests:
+              cpu: "1"
+              memory: 1Gi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          readinessProbe:
+            exec:
+              command: ["true"]
+            initialDelaySeconds: 5

@@ -21,3 +21,14 @@ spec:
                     name: finops-observer-config
                 - configMapRef:
                     name: finops-observer-settings
+              env:
+                - name: EDA_WEBHOOK_URL
+                  value: "http://finops-approval.finops-demo.svc:8085/intent"
+              volumeMounts:
+                - name: clusters-config
+                  mountPath: /app/observer/clusters.json
+                  subPath: clusters.json
+          volumes:
+            - name: clusters-config
+              configMap:
+                name: finops-observer-clusters

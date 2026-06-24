@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finops-approval
+  namespace: finops-demo
+  labels:
+    app: finops-approval
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: finops-approval
+  template:
+    metadata:
+      labels:
+        app: finops-approval
+    spec:
+      serviceAccountName: finops-approval
+      containers:
+        - name: approval
+          image: quay.io/pm_ronahuan/finops-approval:latest
+          ports:
+            - containerPort: 8085
+          envFrom:
+            - secretRef:
+                name: finops-observer-config
+            - secretRef:
+                name: finops-cluster-tokens
+          env:
+            - name: ACTOR_IMAGE
+              value: "quay.io/pm_ronahuan/finops-actor:latest"
+            - name: ACTOR_JOB_NAMESPACE
+              value: "finops-demo"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8085
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: finops-approval
+  namespace: finops-demo
+spec:
+  selector:
+    app: finops-approval
+  ports:
+    - port: 8085
+      targetPort: 8085
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: finops-approval
+  namespace: finops-demo
+spec:
+  to:
+    kind: Service
+    name: finops-approval
+  port:
+    targetPort: 8085
+  tls:
+    termination: edge

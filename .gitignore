@@ -8,3 +8,4 @@ observer/out/*
 !observer/out/.gitkeep
 actor/out/*
 !actor/out/.gitkeep
+!deploy/secret-cluster-tokens.yaml
