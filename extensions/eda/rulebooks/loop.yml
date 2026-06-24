@@ -15,6 +15,7 @@
           organization: Default
           job_args:
             extra_vars:
+              cluster: "{{ event.payload.cluster }}"
               namespace: "{{ event.payload.namespace }}"
               workload: "{{ event.payload.workload }}"
               container: "{{ event.payload.container }}"
@@ -27,3 +28,4 @@
               expected_cpu: "{{ event.payload.current.cpu_request }}"
               expected_mem: "{{ event.payload.current.memory_request }}"
               saving: "{{ event.payload.monthly_saving_estimate }}"
+              slack_webhook_url: "{{ SLACK_WEBHOOK_URL }}"
