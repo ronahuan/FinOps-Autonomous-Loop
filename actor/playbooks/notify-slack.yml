@@ -2,13 +2,16 @@
   hosts: localhost
   connection: local
   gather_facts: false
+  vars:
+    proposal_key: "{{ cluster | default('unknown') }}__{{ namespace }}__{{ workload }}"
   tasks:
-    - name: Post Slack notification
+    - name: Post Slack notification with Approve/Deny buttons
       ansible.builtin.uri:
         url: "{{ slack_webhook_url }}"
         method: POST
         body_format: json
         body:
+          text: "FinOps Proposal: {{ namespace }}/{{ workload }}"
           blocks:
             - type: header
               text:
@@ -30,10 +33,22 @@
                   text: "*Current:*\nCPU {{ current_cpu }}, Mem {{ current_mem }}"
                 - type: mrkdwn
                   text: "*Recommended:*\nCPU {{ rec_cpu }}, Mem {{ rec_mem }}"
-            - type: section
-              text:
-                type: mrkdwn
-                text: "<{{ aap_url | default('https://sandbox-aap-pm-ronahuan-dev.apps.rm2.thpm.p1.openshiftapps.com') }}/execution/administration/workflow-approvals|:white_check_mark: Click here to approve in AAP>"
+            - type: actions
+              elements:
+                - type: button
+                  text:
+                    type: plain_text
+                    text: "Approve"
+                  style: primary
+                  action_id: finops_approve
+                  value: "{{ proposal_key }}"
+                - type: button
+                  text:
+                    type: plain_text
+                    text: "Deny"
+                  style: danger
+                  action_id: finops_deny
+                  value: "{{ proposal_key }}"
         status_code: [200]
       failed_when: false
       when: slack_webhook_url | length > 0

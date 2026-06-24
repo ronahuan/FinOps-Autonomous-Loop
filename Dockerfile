@@ -32,7 +32,7 @@ CMD ["ansible-playbook", "playbooks/remediate-safe.yml"]
 
 # ---- approval ----
 FROM base AS approval
-RUN pip install --no-cache-dir kubernetes
+RUN pip install --no-cache-dir kubernetes slack-bolt flask
 WORKDIR /app
 COPY approval/server.py .
 EXPOSE 8085

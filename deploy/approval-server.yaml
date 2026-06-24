@@ -26,11 +26,16 @@ spec:
                 name: finops-observer-config
             - secretRef:
                 name: finops-cluster-tokens
+            - secretRef:
+                name: finops-approval-config
+                optional: true
           env:
             - name: ACTOR_IMAGE
               value: "quay.io/pm_ronahuan/finops-actor:latest"
             - name: ACTOR_JOB_NAMESPACE
               value: "finops-demo"
+            - name: PYTHONUNBUFFERED
+              value: "1"
           readinessProbe:
             httpGet:
               path: /health
