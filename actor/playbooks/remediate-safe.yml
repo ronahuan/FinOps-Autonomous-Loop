@@ -74,8 +74,8 @@
     - name: SAFETY - live config still matches the approved baseline (when provided by EDA)
       ansible.builtin.assert:
         that:
-          - (expected_cpu is not defined) or (orig_cpu == expected_cpu)
-          - (expected_mem is not defined) or (orig_mem == expected_mem)
+          - (expected_cpu is not defined) or (orig_cpu | string == expected_cpu | string)
+          - (expected_mem is not defined) or (orig_mem | string == expected_mem | string)
         fail_msg: "Live requests changed since approval. Refusing stale remediation."
 
     - name: Ensure backup directory exists
