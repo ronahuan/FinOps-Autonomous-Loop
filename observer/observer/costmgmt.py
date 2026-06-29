@@ -33,13 +33,26 @@ def _bytes_to_k8s_mem(amount: float) -> str:
     return f"{math.ceil(mib)}Mi"
 
 
-def _parse_api_item(item: dict) -> Recommendation:
+def _parse_api_item(item: dict) -> Recommendation | None:
     recs = item["recommendations"]
     current_req = recs["current"]["requests"]
     terms = recs["recommendation_terms"]
-    short = terms.get("short_term") or terms.get("medium_term") or terms.get("long_term")
-    cost_cfg = short["recommendation_engines"]["cost"]["config"]["requests"]
-    duration_hours = short.get("duration_in_hours", 0)
+
+    chosen = None
+    for term_name in ("short_term", "medium_term", "long_term"):
+        t = terms.get(term_name, {})
+        if not t:
+            continue
+        cfg = t.get("recommendation_engines", {}).get("cost", {}).get("config", {}).get("requests", {})
+        if cfg.get("cpu", {}).get("amount") is not None and cfg.get("memory", {}).get("amount") is not None:
+            chosen = t
+            break
+
+    if not chosen:
+        return None
+
+    cost_cfg = chosen["recommendation_engines"]["cost"]["config"]["requests"]
+    duration_hours = chosen.get("duration_in_hours", 0)
 
     if duration_hours >= 24:
         term_str = f"{int(duration_hours // 24)}d"
@@ -75,7 +88,7 @@ def recommendations(client_id: str, client_secret: str) -> list[Recommendation]:
     )
     resp.raise_for_status()
     data = resp.json().get("data", [])
-    return [_parse_api_item(item) for item in data]
+    return [r for r in (_parse_api_item(item) for item in data) if r is not None]
 
 
 def _parse(raw: dict) -> Recommendation:

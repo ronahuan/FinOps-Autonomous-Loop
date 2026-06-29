@@ -33,12 +33,13 @@ def _is_suppressed(facts: dict) -> bool:
         return False
 
 
-def _load_clusters(config_path: Path) -> dict[str, Cluster]:
+def _load_clusters(config_path: Path) -> tuple[dict[str, Cluster], dict[str, str]]:
     if not config_path.exists():
-        return {"_default": Cluster()}
+        return {"_default": Cluster()}, {}
 
     data = json.loads(config_path.read_text())
     clusters = {}
+    uuid_to_alias = {}
     for alias, cfg in data["clusters"].items():
         token = os.environ.get(cfg["token_env"], "")
         if not token:
@@ -49,7 +50,9 @@ def _load_clusters(config_path: Path) -> dict[str, Cluster]:
             token=token,
             verify_ssl=cfg.get("verify_ssl", True),
         )
-    return clusters
+        if "cluster_uuid" in cfg:
+            uuid_to_alias[cfg["cluster_uuid"]] = alias
+    return clusters, uuid_to_alias
 
 
 def main() -> None:
@@ -63,7 +66,7 @@ def main() -> None:
     else:
         recs = load_fixture(fixture_path)
 
-    clusters = _load_clusters(clusters_config)
+    clusters, uuid_to_alias = _load_clusters(clusters_config)
 
     cfg = {
         "stale_days": STALE_DAYS,
@@ -72,12 +75,14 @@ def main() -> None:
     }
 
     for rec in recs:
-        cluster = clusters.get(rec.cluster) or clusters.get("_default")
-        if not cluster:
+        alias = uuid_to_alias.get(rec.cluster, rec.cluster)
+        cluster_obj = clusters.get(alias) or clusters.get(rec.cluster) or clusters.get("_default")
+        if not cluster_obj:
             print(f"No cluster config for '{rec.cluster}' — skipping")
             continue
+        rec.cluster = alias
 
-        facts = cluster.workload_facts(rec.namespace, rec.workload, rec.container)
+        facts = cluster_obj.workload_facts(rec.namespace, rec.workload, rec.container)
         facts["suppressed"] = _is_suppressed(facts)
 
         gap = gap_pct(rec.current, rec.recommended)
