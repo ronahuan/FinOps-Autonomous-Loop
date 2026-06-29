@@ -28,3 +28,5 @@
               expected_cpu: "{{ event.payload.current.cpu_request }}"
               expected_mem: "{{ event.payload.current.memory_request }}"
               saving: "{{ event.payload.monthly_saving_estimate }}"
+              jira_ticket: "{{ event.payload.jira_ticket | default('') }}"
+              jira_url: "{{ event.payload.jira_url | default('') }}"

@@ -175,6 +175,53 @@
           failed_when: false
           when: slack_webhook_url is defined and slack_webhook_url | length > 0
 
+        - name: Update Jira ticket — success
+          ansible.builtin.uri:
+            url: "{{ jira_url }}/rest/api/3/issue/{{ jira_ticket }}/comment"
+            method: POST
+            user: "{{ jira_user }}"
+            password: "{{ jira_api_token }}"
+            force_basic_auth: true
+            body_format: json
+            body:
+              body:
+                version: 1
+                type: doc
+                content:
+                  - type: paragraph
+                    content:
+                      - type: text
+                        text: "Remediation applied: CPU {{ cpu_req }}, Mem {{ mem_req }}. Saving ${{ saving | default('0') }}/mo."
+            status_code: [200, 201]
+          failed_when: false
+          when: jira_ticket is defined and jira_ticket | length > 0
+
+        - name: Get Jira transitions
+          ansible.builtin.uri:
+            url: "{{ jira_url }}/rest/api/3/issue/{{ jira_ticket }}/transitions"
+            method: GET
+            user: "{{ jira_user }}"
+            password: "{{ jira_api_token }}"
+            force_basic_auth: true
+          register: jira_transitions
+          failed_when: false
+          when: jira_ticket is defined and jira_ticket | length > 0
+
+        - name: Close Jira ticket
+          ansible.builtin.uri:
+            url: "{{ jira_url }}/rest/api/3/issue/{{ jira_ticket }}/transitions"
+            method: POST
+            user: "{{ jira_user }}"
+            password: "{{ jira_api_token }}"
+            force_basic_auth: true
+            body_format: json
+            body:
+              transition:
+                id: "{{ (jira_transitions.json.transitions | selectattr('name', 'equalto', 'Done') | first).id }}"
+            status_code: [200, 204]
+          failed_when: false
+          when: jira_ticket is defined and jira_ticket | length > 0 and jira_transitions is defined and jira_transitions.json is defined
+
       rescue:
         - name: ROLLBACK - restore original requests
           kubernetes.core.k8s:
@@ -236,6 +283,27 @@
             status_code: [200]
           failed_when: false
           when: slack_webhook_url is defined and slack_webhook_url | length > 0
+
+        - name: Update Jira ticket — rollback
+          ansible.builtin.uri:
+            url: "{{ jira_url }}/rest/api/3/issue/{{ jira_ticket }}/comment"
+            method: POST
+            user: "{{ jira_user }}"
+            password: "{{ jira_api_token }}"
+            force_basic_auth: true
+            body_format: json
+            body:
+              body:
+                version: 1
+                type: doc
+                content:
+                  - type: paragraph
+                    content:
+                      - type: text
+                        text: "ROLLED BACK to CPU {{ orig_cpu }}, Mem {{ orig_mem }}. Workload suppressed for 7 days. Requires investigation."
+            status_code: [200, 201]
+          failed_when: false
+          when: jira_ticket is defined and jira_ticket | length > 0
 
         - name: Mark the run failed
           ansible.builtin.fail:

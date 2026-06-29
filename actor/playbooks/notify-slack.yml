@@ -33,6 +33,10 @@
                   text: "*Current:*\nCPU {{ current_cpu }}, Mem {{ current_mem }}"
                 - type: mrkdwn
                   text: "*Recommended:*\nCPU {{ rec_cpu }}, Mem {{ rec_mem }}"
+            - type: section
+              text:
+                type: mrkdwn
+                text: "{{ ':ticket: Ticket: <' ~ jira_url ~ '/browse/' ~ jira_ticket ~ '|' ~ jira_ticket ~ '>' if jira_ticket | default('') | length > 0 else ':clipboard: No ticket' }}"
             - type: actions
               elements:
                 - type: button
