@@ -75,6 +75,10 @@ def main() -> None:
     }
 
     for rec in recs:
+        if rec.workload.startswith("finops-"):
+            print(f"Skipping finops infrastructure workload '{rec.workload}'")
+            continue
+
         alias = uuid_to_alias.get(rec.cluster, rec.cluster)
         cluster_obj = clusters.get(alias) or clusters.get(rec.cluster) or clusters.get("_default")
         if not cluster_obj:

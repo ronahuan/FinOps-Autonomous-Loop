@@ -207,6 +207,12 @@
           failed_when: false
           when: jira_ticket is defined and jira_ticket | length > 0
 
+        - name: Find close transition
+          ansible.builtin.set_fact:
+            jira_close_id: "{{ (jira_transitions.json.transitions | selectattr('name', 'in', ['Done', 'done', 'Closed', 'closed', 'Resolve', 'Resolved']) | first).id }}"
+          failed_when: false
+          when: jira_ticket is defined and jira_ticket | length > 0 and jira_transitions is defined and jira_transitions.json is defined
+
         - name: Close Jira ticket
           ansible.builtin.uri:
             url: "{{ jira_url }}/rest/api/3/issue/{{ jira_ticket }}/transitions"
@@ -217,10 +223,10 @@
             body_format: json
             body:
               transition:
-                id: "{{ (jira_transitions.json.transitions | selectattr('name', 'equalto', 'Done') | first).id }}"
+                id: "{{ jira_close_id }}"
             status_code: [200, 204]
           failed_when: false
-          when: jira_ticket is defined and jira_ticket | length > 0 and jira_transitions is defined and jira_transitions.json is defined
+          when: jira_close_id is defined
 
       rescue:
         - name: ROLLBACK - restore original requests

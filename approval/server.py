@@ -88,6 +88,28 @@ def _jira_auth() -> tuple[str, str]:
     return (JIRA_USER, JIRA_API_TOKEN)
 
 
+def _find_open_jira_ticket(cluster: str, namespace: str, workload: str) -> str | None:
+    if not JIRA_URL or not JIRA_API_TOKEN:
+        return None
+    try:
+        jql = f'project = {JIRA_PROJECT_KEY} AND summary ~ "{workload}" AND summary ~ "{cluster}" AND status != Done'
+        resp = httpx.post(
+            f"{JIRA_URL}/rest/api/3/search/jql",
+            auth=_jira_auth(),
+            json={"jql": jql, "maxResults": 1, "fields": ["key", "status"]},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        issues = resp.json().get("issues", [])
+        if issues:
+            key = issues[0]["key"]
+            log.info("Found existing open ticket %s for %s/%s", key, namespace, workload)
+            return key
+    except Exception as e:
+        log.warning("Jira search failed: %s", e)
+    return None
+
+
 def _create_jira_ticket(intent: dict) -> str | None:
     if not JIRA_URL or not JIRA_API_TOKEN:
         return None
@@ -95,6 +117,11 @@ def _create_jira_ticket(intent: dict) -> str | None:
     cluster = intent.get("cluster", "unknown")
     ns = intent.get("namespace", "")
     wl = intent.get("workload", "")
+
+    existing = _find_open_jira_ticket(cluster, ns, wl)
+    if existing:
+        _comment_jira_ticket(existing, "Re-proposed by Observer. Previous approval expired or new recommendation available.")
+        return existing
     saving = intent.get("monthly_saving_estimate", 0)
     cur = intent.get("current", {})
     rec = intent.get("recommended", {})
